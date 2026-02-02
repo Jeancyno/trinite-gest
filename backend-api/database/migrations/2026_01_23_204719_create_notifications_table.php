@@ -11,10 +11,12 @@ return new class extends Migration
      */
    public function up(): void
         {
-            Schema::create('notifications_sms', function (Blueprint $table) {
+            Schema::create('notifications', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('membre_id')->constrained('membres');
                 $table->string('type_rappel'); // 'echeance_proche', 'retard_paiement'
+                $table->string('type')->default('info'); // info, warning, success
+                $table->string('user_type')->nullable(); 
                 $table->date('date_envoi');
                 $table->string('statut'); // 'envoyé', 'échec'
                 $table->timestamps();

@@ -40,3 +40,59 @@
 .read-the-docs {
   color: #888;
 }
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+/* Dans index.css ou App.css */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Animation pour les popups */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fixed.top-4.right-4.bg-white {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Effet de clic sur l'overlay */
+.bg-black\/30.backdrop-blur-sm {
+  transition: opacity 0.2s ease;
+}
+
+.bg-black\/30.backdrop-blur-sm:active {
+  opacity: 0.4;
+}

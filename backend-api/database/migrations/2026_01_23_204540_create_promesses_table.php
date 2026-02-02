@@ -6,26 +6,29 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-   public function up(): void
-{
-    Schema::create('promesses', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('membre_id')->constrained('membres')->onDelete('cascade');
-        $table->decimal('montant_total', 15, 2); // Le total promis (ex: 60$)
-        $table->string('devise')->default('USD'); // USD ou CDF
-        $table->integer('duree_mois')->default(6); // La période (ex: 6 mois)
-        $table->date('date_debut');
-        $table->text('observation')->nullable();
-        $table->timestamps();
-    });
-}
+    public function up(): void
+    {
+        Schema::create('promesses', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('membre_id')->constrained()->onDelete('cascade');
+            $table->decimal('montant_total', 12, 2);
+            $table->enum('devise', ['USD', 'CDF', 'EUR'])->default('USD');
+            $table->integer('duree_mois');
+            $table->date('date_debut');
+            $table->date('date_fin')->nullable();
+            $table->text('observation')->nullable();
+            $table->enum('statut', ['actif', 'termine', 'annule'])->default('actif');
+            $table->string('photo')->nullable();
+            $table->timestamps();
+            
+            // Index
+            $table->index('membre_id');
+            $table->index('statut');
+            $table->index('date_debut');
+            $table->index('date_fin');
+        });
+    }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('promesses');

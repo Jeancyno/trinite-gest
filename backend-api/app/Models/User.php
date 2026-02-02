@@ -10,6 +10,7 @@ use Laravel\Sanctum\HasApiTokens; // 1. AJOUT INDISPENSABLE
 class User extends Authenticatable
 {
     // On ajoute HasApiTokens ici
+    
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
@@ -58,4 +59,21 @@ class User extends Authenticatable
     {
         return $this->hasMany(AuditLog::class);
     }
+    
+    public function profile()
+{
+    return $this->hasOne(Profile::class);
 }
+
+/**
+ * Récupérer l'URL de l'avatar.
+ */
+public function getAvatarUrlAttribute()
+{
+    return $this->profile ? $this->profile->getAvatarUrl() : asset('images/default-avatar.png');
+}
+}
+
+
+
+

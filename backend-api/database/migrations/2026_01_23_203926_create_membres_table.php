@@ -19,9 +19,11 @@ return new class extends Migration
         $table->string('sexe')->nullable();
         $table->string('telephone')->unique(); // Notre identifiant naturel
         $table->string('adresse')->nullable();
+        $table->string('photo')->nullable();
         $table->timestamps();
     });
 }
+
     /**
      * Reverse the migrations.
      */

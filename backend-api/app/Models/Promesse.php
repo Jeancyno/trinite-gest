@@ -13,14 +13,25 @@ class Promesse extends Model
     }
 
     // Somme déjà payée pour cette promesse
-    public function totalPaye()
-    {
-        return $this->paiements()->sum('montant_paye');
-    }
+    /**
+     * Get total amount paid.
+     */
+   public function totalPaid() {
+  return $this->hasMany(Paiement::class)->sum('montant') ?? 0;
+}
 
-    // Reste à payer
-    public function resteAPayer()
-    {
-        return $this->montant_total - $this->totalPaye();
-    }
+public function remainingAmount() {
+    return $this->montant_total - $this->totalPaid();
+}
+
+public function paymentPercentage() {
+    return $this->montant_total > 0 ? round(($this->totalPaid() / $this->montant_total) * 100, 1) : 0;
+}
+  
+public function membre() {
+    return $this->belongsTo(Membre::class);
+}
+
+
+
 }
