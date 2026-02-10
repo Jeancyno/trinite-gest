@@ -6,26 +6,27 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-   public function up(): void
-        {
-            Schema::create('notifications', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('membre_id')->constrained('membres');
-                $table->string('type_rappel'); // 'echeance_proche', 'retard_paiement'
-                $table->string('type')->default('info'); // info, warning, success
-                $table->string('user_type')->nullable(); 
-                $table->date('date_envoi');
-                $table->string('statut'); // 'envoyé', 'échec'
-                $table->timestamps();
-            });
-        }
+    public function up(): void
+    {
+        Schema::create('notifications', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade');
+            $table->string('role')->nullable(); // 'all', 'pasteur', 'tresorier', 'secretaire', 'super_admin'
+            $table->string('title');
+            $table->text('message');
+            $table->string('type'); // 'dime', 'engagement', 'member', 'expense', 'warning', 'info'
+            $table->string('related_model')->nullable(); // 'Dime', 'Promesse', 'Membre', 'Depense'
+            $table->unsignedBigInteger('related_id')->nullable();
+            $table->boolean('is_read')->default(false);
+            $table->json('data')->nullable();
+            $table->timestamps();
+            
+            $table->index(['user_id', 'is_read']);
+            $table->index(['role', 'is_read']);
+            $table->index(['type', 'created_at']);
+        });
+    }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('notifications');

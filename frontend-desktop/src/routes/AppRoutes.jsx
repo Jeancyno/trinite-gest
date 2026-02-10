@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom"
 import MainLayout from "../components/layout/MainLayout"
 
 // Pages
+import NotFoundPage from "../pages/NotFoundPage"
 import PasteurDashboard from "../pages/pasteur/Dashboard"
 import PaiementConstruction from "../pages/construction/Engagements"
 import EngagementConstruction from "../pages/construction/Paiement"
@@ -25,7 +26,8 @@ import TestPayment from "../pages/public/choix-payement/paiement/TestPayment"
 import ConfirmationPaiement from "../pages/public/choix-payement/paiement/ConfirmationPaiement"
 import EtatEngagements from "../pages/construction/EtatEngagements"
 import DepensesPage from "../pages/sec/DepensesPage"
-
+import NotificationsPage from "../pages/notifications/NotificationsPage"
+import RapportsPage from "../pages/rapports/rapports"
 export default function AppRoutes() {
   return (
     <Routes>
@@ -62,6 +64,11 @@ export default function AppRoutes() {
           path="construction/EtatEngagements"
           element={<EtatEngagements />}
         />
+        {/* Rapports */}
+        <Route
+          path="rapports/rapports"
+          element={<RapportsPage />}
+        />
 
         {/* Dîme */}
         <Route
@@ -96,6 +103,10 @@ export default function AppRoutes() {
           path="membres/:id"
           element={<MemberDetailPage />}
         />
+        <Route
+          path="notifications/notificationsPage"
+          element={<NotificationsPage />}
+        />
       
 
         {/* Redirection pour compatibilité */}
@@ -112,7 +123,7 @@ export default function AppRoutes() {
       </Route>
       
       {/* Redirection par défaut */}
-      <Route path="*" element={<div>404 - Page non trouvée</div>} />
+      <Route path="*" element={<NotFoundPage>404 - Page non trouvée</NotFoundPage>} />
     </Routes>
   )
 }

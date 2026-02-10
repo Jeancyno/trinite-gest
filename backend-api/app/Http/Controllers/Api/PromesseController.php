@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Api\NotificationController;
 
 class PromesseController extends Controller
 {
@@ -84,11 +85,31 @@ class PromesseController extends Controller
                 'statut' => 'actif',
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Engagement créé !', 'data' => $promesse], 201);
+            // 🔥 CORRECTION : Créer une notification d'ENGAGEMENT (pas de dîme)
+            if ($promesse) {
+                // Récupérer l'utilisateur connecté
+                $user = auth()->user();
+                
+                // Appeler la méthode de création de notification d'engagement
+                // Note: Assurez-vous que NotificationController existe
+                \App\Http\Controllers\Api\NotificationController::createEngagementNotification(
+                    $promesse, 
+                    $user
+                );
+            }
+
+            return response()->json([
+                'success' => true, 
+                'message' => 'Engagement créé !', 
+                'data' => $promesse
+            ], 201);
 
         } catch (\Exception $e) {
             Log::error('🔥 Erreur storePublic: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur'], 500);
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -104,7 +125,11 @@ class PromesseController extends Controller
                 ->first();
 
             if (!$membre) {
-                return response()->json(['success' => true, 'has_pending' => false, 'membre_exists' => false]);
+                return response()->json([
+                    'success' => true, 
+                    'has_pending' => false, 
+                    'membre_exists' => false
+                ]);
             }
 
             // ON VÉRIFIE S'IL Y A UNE DETTE
@@ -141,70 +166,244 @@ class PromesseController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false, 
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
     public function index(Request $request)
     {
-        $query = Promesse::with('membre');
-        
-        if ($request->membre_id) $query->where('membre_id', $request->membre_id);
-        if ($request->statut) $query->where('statut', $request->statut);
+        try {
+            $query = Promesse::with('membre');
+            
+            if ($request->membre_id) {
+                $query->where('membre_id', $request->membre_id);
+            }
+            
+            if ($request->statut) {
+                $query->where('statut', $request->statut);
+            }
+            
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->whereHas('membre', function($q2) use ($search) {
+                        $q2->where('nom', 'like', "%{$search}%")
+                           ->orWhere('prenom', 'like', "%{$search}%")
+                           ->orWhere('postnom', 'like', "%{$search}%");
+                    })
+                    ->orWhere('observation', 'like', "%{$search}%")
+                    ->orWhere('devise', 'like', "%{$search}%");
+                });
+            }
 
-        $promesses = $query->orderBy('created_at', 'desc')->paginate($request->per_page ?? 15);
+            $promesses = $query->orderBy('created_at', 'desc')
+                              ->paginate($request->per_page ?? 15);
 
-        $promesses->getCollection()->transform(function ($p) {
-            $paye = $p->paiements()->sum('montant');
-            $p->montant_paye = $paye;
-            $p->montant_restant = $p->montant_total - $paye;
-            return $p;
-        });
+            // Ajouter les montants payés et restants
+            $promesses->getCollection()->transform(function ($p) {
+                $paye = $p->paiements()->sum('montant');
+                $p->montant_paye = $paye;
+                $p->montant_restant = $p->montant_total - $paye;
+                $p->pourcentage_paye = $p->montant_total > 0 ? 
+                    round(($paye / $p->montant_total) * 100, 2) : 0;
+                return $p;
+            });
 
-        return response()->json(['success' => true, 'data' => $promesses]);
+            return response()->json([
+                'success' => true, 
+                'data' => $promesses,
+                'message' => 'Liste des engagements récupérée'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur PromesseController@index: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur'
+            ], 500);
+        }
     }
 
     public function show(Promesse $promesse)
     {
-        $paye = $promesse->paiements()->sum('montant');
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'promesse' => $promesse->load('membre', 'paiements'),
-                'montant_paye' => $paye,
-                'montant_restant' => $promesse->montant_total - $paye
-            ]
-        ]);
+        try {
+            $paye = $promesse->paiements()->sum('montant');
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'promesse' => $promesse->load('membre', 'paiements'),
+                    'montant_paye' => $paye,
+                    'montant_restant' => $promesse->montant_total - $paye,
+                    'pourcentage_paye' => $promesse->montant_total > 0 ? 
+                        round(($paye / $promesse->montant_total) * 100, 2) : 0
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur PromesseController@show: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur'
+            ], 500);
+        }
     }
 
     public function update(Request $request, Promesse $promesse)
     {
-        $validated = $request->validate([
-            'montant_total' => 'numeric',
-            'statut' => 'in:actif,termine,annule',
-            'observation' => 'nullable|string'
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'montant_total' => 'sometimes|numeric|min:1',
+                'statut' => 'sometimes|in:actif,termine,annule',
+                'observation' => 'nullable|string',
+                'devise' => 'sometimes|in:USD,CDF,EUR',
+                'date_debut' => 'sometimes|date',
+                'date_fin' => 'sometimes|date|after:date_debut'
+            ]);
 
-        $promesse->update($validated);
-        return response()->json(['success' => true, 'data' => $promesse]);
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false, 
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $promesse->update($validator->validated());
+            
+            return response()->json([
+                'success' => true, 
+                'data' => $promesse,
+                'message' => 'Engagement mis à jour'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur PromesseController@update: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur'
+            ], 500);
+        }
     }
 
     public function destroy(Promesse $promesse)
     {
-        if ($promesse->paiements()->count() > 0) {
-            return response()->json(['success' => false, 'message' => 'Paiements existants'], 422);
+        try {
+            if ($promesse->paiements()->count() > 0) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Impossible de supprimer : des paiements sont associés à cet engagement'
+                ], 422);
+            }
+            
+            $promesse->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Engagement supprimé avec succès'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur PromesseController@destroy: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur'
+            ], 500);
         }
-        $promesse->delete();
-        return response()->json(['success' => true]);
     }
 
     public function stats()
     {
-        $stats = [
-            'total' => Promesse::count(),
-            'actives' => Promesse::where('statut', 'actif')->count(),
-            'montant_total' => (float) Promesse::sum('montant_total'),
-        ];
-        return response()->json(['success' => true, 'data' => $stats]);
+        try {
+            $stats = [
+                'total' => Promesse::count(),
+                'actives' => Promesse::where('statut', 'actif')->count(),
+                'termines' => Promesse::where('statut', 'termine')->count(),
+                'annules' => Promesse::where('statut', 'annule')->count(),
+                'montant_total' => (float) Promesse::sum('montant_total'),
+                'montant_actif' => (float) Promesse::where('statut', 'actif')->sum('montant_total'),
+                'par_devise' => Promesse::select('devise', DB::raw('COUNT(*) as count'), DB::raw('SUM(montant_total) as total'))
+                    ->groupBy('devise')
+                    ->get()
+            ];
+            
+            return response()->json([
+                'success' => true, 
+                'data' => $stats
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur PromesseController@stats: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Créer un paiement sur un engagement
+     */
+    public function storePaiement(Request $request, Promesse $promesse)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'montant' => 'required|numeric|min:1',
+                'devise' => 'required|in:USD,CDF,EUR',
+                'date_paiement' => 'required|date',
+                'methode_paiement' => 'required|in:Espèces,Mobile Money,Banque,Virement,Carte de crédit,Chèque,Autre',
+                'note' => 'nullable|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false, 
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $validated = $validator->validated();
+            
+            // Vérifier que le montant ne dépasse pas le restant
+            $totalPaye = $promesse->paiements()->sum('montant');
+            $montantRestant = $promesse->montant_total - $totalPaye;
+            
+            if ($validated['montant'] > $montantRestant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le montant dépasse le solde restant (' . $montantRestant . ' ' . $promesse->devise . ')'
+                ], 422);
+            }
+
+            $paiement = $promesse->paiements()->create([
+                'montant' => $validated['montant'],
+                'devise' => $validated['devise'],
+                'date_paiement' => $validated['date_paiement'],
+                'methode_paiement' => $validated['methode_paiement'],
+                'note' => $validated['note'] ?? null,
+                'user_id' => auth()->id()
+            ]);
+            
+            // Mettre à jour le statut si entièrement payé
+            $nouveauTotalPaye = $totalPaye + $validated['montant'];
+            if (abs($nouveauTotalPaye - $promesse->montant_total) < 0.01) {
+                $promesse->update(['statut' => 'termine']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement enregistré',
+                'data' => $paiement
+            ], 201);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur PromesseController@storePaiement: ' . $e->getMessage());
+            return response()->json([
+                'success' => false, 
+                'message' => 'Erreur serveur'
+            ], 500);
+        }
     }
 }

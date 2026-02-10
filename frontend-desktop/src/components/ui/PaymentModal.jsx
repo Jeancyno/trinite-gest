@@ -148,52 +148,69 @@ export default function PaymentModal({ open, onClose, userRole, membrePreSelecti
       }
       
       // ========== SECRÉTAIRE OU ADMIN ==========
-      else if (isSecretaire || isAdmin) {
-        // Vérifier d'abord si le membre a déjà un engagement actif
-        try {
-          const checkResponse = await api.get(`/promesses/pending/${selectedMembreId}`)
-          
-          if (checkResponse.data.success && checkResponse.data.hasPending) {
-            const confirm = window.confirm(
-              `⚠️ Ce membre a déjà un engagement en cours (${checkResponse.data.data.pourcentage_paye}% payé).\n` +
-              `Voulez-vous quand même créer un nouvel engagement ?`
-            )
-            
-            if (!confirm) {
-              setIsSubmitting(false)
-              return
-            }
-          }
-        } catch (checkError) {
-          console.log("Pas d'engagement existant ou erreur de vérification")
-        }
-        
-        const promesseData = {
-          membre_id: parseInt(selectedMembreId),
-          montant_total: parseFloat(montant),
-          devise: devise,
-          duree_mois: parseInt(dureeMois),
-          date_debut: new Date().toISOString().split('T')[0], // Date du jour
-          observation: "Construction",
-          projet: "Construction"
-        }
-        
-        const response = await api.post('/promesses', promesseData)
-        
-        if (response.data.success) {
-          toast.success(`✅ Engagement de ${montant} ${devise} créé`)
-          
-          // Redirection automatique après succès
-          if (onSuccess) {
-            onSuccess()
-          }
-          
-          // Fermer la popup
-          setTimeout(() => {
-            onClose()
-          }, 1500)
-        }
-      }
+    // ========== SECRÉTAIRE OU ADMIN ==========
+else if (isSecretaire || isAdmin) {
+  // 1. Trouver l'objet membre pour récupérer son téléphone
+  const membreInfo = membres.find(m => String(m.id) === String(selectedMembreId));
+  const telephone = membreInfo?.telephone;
+
+  if (!telephone) {
+    toast.error("Impossible de vérifier l'engagement : numéro de téléphone manquant.");
+    setIsSubmitting(false);
+    return;
+  }
+
+  // 2. Vérification STRICTE de l'engagement en cours par téléphone
+  try {
+    // On utilise la route publique qui cherche par téléphone comme tu l'as souhaité
+    const checkResponse = await api.get(`/promesses/pending-public/${telephone}`);
+    
+    // Si has_pending est vrai (ou hasPending selon ton JSON), on BLOQUE
+    if (checkResponse.data.success && (checkResponse.data.has_pending || checkResponse.data.hasPending)) {
+      const details = checkResponse.data.data;
+      toast.error(
+        <div>
+          <p className="font-bold text-base">🚫 Création impossible</p>
+          <p className="text-sm">Ce membre a déjà un engagement actif :</p>
+          <p className="text-xs font-mono mt-1">
+             Reste : {details.montant_restant} {details.devise} ({details.pourcentage_paye}% payé)
+          </p>
+        </div>,
+        { autoClose: 5000 }
+      );
+      setIsSubmitting(false);
+      return; // <--- ARRÊT CRITIQUE : On ne crée pas la promesse
+    }
+  } catch (checkError) {
+    console.error("Erreur technique lors de la vérification", checkError);
+    // Optionnel : tu peux décider de bloquer ici aussi par sécurité
+  }
+
+  // 3. Si on arrive ici, le membre est libre : on crée l'engagement
+  const promesseData = {
+    membre_id: parseInt(selectedMembreId),
+    montant_total: parseFloat(montant),
+    devise: devise,
+    duree_mois: parseInt(dureeMois),
+    date_debut: new Date().toISOString().split('T')[0],
+    observation: "Construction",
+    projet: "Construction"
+  };
+
+  try {
+    // Utilise la route /promesses/public car c'est celle qui pointe vers storePublic dans ton api.php
+    const response = await api.post('/promesses/public', promesseData);
+    
+    if (response.data.success) {
+      toast.success(`✅ Engagement de ${montant} ${devise} créé avec succès`);
+      if (onSuccess) onSuccess();
+      setTimeout(() => onClose(), 1500);
+    }
+  } catch (error) {
+    const errorMsg = error.response?.data?.message || "Erreur lors de la création";
+    toast.error(`❌ ${errorMsg}`);
+  }
+}
       
     } catch (error) {
       console.error("Erreur:", error)

@@ -147,7 +147,7 @@ function ProfileEdit({ user, onClose, onUpdate }) {
 
   return (
     <div 
-      className="fixed inset-0 flex items-center justify-center p-4 z-[9999]"
+      className="fixed inset-0 flex items-center justify-center p-70 z-[9999]"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose()
@@ -155,7 +155,7 @@ function ProfileEdit({ user, onClose, onUpdate }) {
       }}
     >
       <div 
-        className="bg-white rounded-2xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto"
+        className="bg-white shadow-2xl  rounded-4xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -593,7 +593,7 @@ const handleUpdateProfile = async (updateData) => {
     <>
       {/* Overlay qui ferme au clic n'importe où */}
       <div 
-        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[9998] cursor-pointer"
+        className="fixed inset-0 bg-black/10 backdrop-blur-sm  cursor-pointer"
         onClick={(e) => {
           onClose()
           if (showEditProfile) {

@@ -10,8 +10,9 @@ import {
 } from "lucide-react"
 import NotificationsPopup from "../../components/popups/NotificationsPopup"
 import ProfilePopup from "../../components/popups/ProfilePopup"
+import axios from "axios" // ← AJOUTER CET IMPORT
 
-export default function Topbar({ onOpenPayment,onOpenO }) {
+export default function Topbar({ onOpenPayment }) {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -44,6 +45,49 @@ export default function Topbar({ onOpenPayment,onOpenO }) {
       }
     }
   }, []);
+
+  // Fonction pour charger le compteur
+  const loadUnreadCount = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      
+      // Si pas de token, on ne fait pas la requête
+      if (!token) {
+        console.log("Pas de token d'authentification");
+        return;
+      }
+      
+      const response = await axios.get('/api/notifications/unread-count', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (response.data.success) {
+        setUnreadCount(response.data.count || 0);
+      }
+    } catch (error) {
+      console.error("Erreur chargement compteur:", error);
+      // Ne pas afficher d'erreur si c'est juste que l'API n'est pas disponible
+      if (error.response?.status !== 500) {
+        console.log("API notifications non disponible");
+      }
+    }
+  };
+
+  // Charger le compteur au démarrage
+  useEffect(() => {
+    if (currentUser) {
+      loadUnreadCount();
+      
+      // Rafraîchir toutes les 30 secondes
+      const interval = setInterval(loadUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [currentUser]);
 
   // Empêcher le défilement quand un popup est ouvert
   useEffect(() => {
@@ -168,13 +212,6 @@ export default function Topbar({ onOpenPayment,onOpenO }) {
           <CreditCard size={18} />
           Paiement rapide
         </button>
-        <button
-          onClick={() => onOpenO()}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-primary/90 text-grey-600 rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium text-sm"
-        >
-          <CreditCard size={18} />
-          Paiement rapide
-        </button>
 
         {/* Bouton Notifications */}
         <div className="relative" ref={notificationsRef}>
@@ -196,7 +233,11 @@ export default function Topbar({ onOpenPayment,onOpenO }) {
             isOpen={isNotificationsOpen} 
             onClose={() => setIsNotificationsOpen(false)}
             currentUser={currentUser}
-            onMarkAllRead={() => setUnreadCount(0)}
+            unreadCount={unreadCount}
+            onMarkAllRead={() => {
+              setUnreadCount(0)
+              loadUnreadCount() // Recharger après marquage
+            }}
             ref={notificationsRef}
           />
         </div>

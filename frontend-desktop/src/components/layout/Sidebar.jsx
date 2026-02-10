@@ -99,7 +99,7 @@ export default function Sidebar() {
         )}
         {/* RAPPORT */}
         {["pasteur", "secretaire", "super_admin"].includes(role) && (
-          <SidebarLink to="/rapports" icon={FileBarChart} label="Rapports" />
+          <SidebarLink to="/rapports/rapports" icon={FileBarChart} label="Rapports" />
         )}
 
     {/* Section MEMBRES - Accessible par Admin, Secrétaire ET Pasteur */}

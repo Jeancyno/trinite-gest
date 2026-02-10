@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load static %} <!-- chargement  de nos fichiers statics -->
+
+{% block content %}  <!-- le body de index.html -->
+
+    <br>
+    <div class="row">
+    <div class="col-lg-6">
+        <div class="box-element" id='form-wrapper'>
+            <!-- Formulaire de renseigenment du client Anonyme -->
+
+        <form action="" id="form">
+            {% csrf_token %}
+            <div id="user-info">
+            <p>Informations Personnelles:</p>
+            <div class="form-field">
+                <input type="text" class="form-control" name="name" placeholder="Nom..." required>
+            </div>
+            <div class="form-field">
+                <input type="text" class="form-control" name="username" placeholder="Prenom..." required>
+            </div>
+            <div class="form-field">
+                <input type="text" class="form-control" name="phone" placeholder="Tel..." required>
+            </div>
+            <div class="form-field">
+                <input type="email" class="form-control" name="email" placeholder="Email..." required>
+            </div>
+            </div>
+            <div id="shipping-info">
+
+                <hr>
+                <p>Informations d'Expédition:</p>
+                <div class="form-field">
+                <input type="text" class="form-control" name="address" placeholder="address..." required>
+                </div>
+                <div class="form-field">
+                <input type="text" class="form-control" name="city" placeholder="Ville..." required>
+                </div>
+                <div class="form-field">
+                <input type="text" class="form-control" name="state" placeholder="Pays..." required>
+                </div>
+                <div class="form-field">
+                <input type="text" class="form-control" name="zipcode" placeholder="Zip code..." required>
+            </div>
+
+                <hr>
+                <!-- Le bouton continuer qui va nous permettre d'effectuer le mode de paiement une fois remplie le formulaire -->
+                <input id="form-button" class="btn w-100 btn-secondary btn-block" type="submit" value="Continuer">
+
+            </div>
+            <hr>
+        </form>
+        </div>
+
+        <br>
+        <div class="box-element hidden" id="payment-info">
+            <small> Veuillez choisir le mode de paiement </small> <!-- La où on aura nos differents modes de paiement -->
+            <center class="bg-info my-3"><button onclick="checkout()">
+                <img src="{% static 'images/cinet.png' %}" class="row-image">
+            </button></center>
+            <!-- <button class="btn w-100 btn-success btn-block" id="make-payment">Effectuer le paiement</button> -->
+            
+        </div>
+
+    </div>
+    <div class="col-lg-6">
+        <div class="box-element">
+            <a class="btn btn-outline-dark" href="{% url 'shop:panier' %}">&#x2190; Retour au panier </a>
+
+            <hr>
+            <h3>Recapitulatif de la commande</h3>
+            <hr>
+
+
+        {% for article in articles %}
+            <div class="panier-row">
+                <div style="flex:2"><img class="row-image" src="{{article.produit.imageUrl}}" alt=""></div>
+                <div style="flex:2">{{article.produit.nom_produit}}</div>
+                <div style="flex:1">${{article.produit.prix}}</div>
+                <div style="flex:1">x{{article.quantite}}</div>
+            </div>
+        {% endfor %}
+
+
+            <h5>Articles: {{commande.get_panier_article}}</h5>
+            <h5>Montant: ${{commande.get_panier_total|floatformat:2}}</h5>
+        </div>
+    </div>
+</div>
+
+<!--  Integration API CinePay -->
+<script>
+        var total = parseFloat('{{ commande.get_panier_total }}').toFixed(2);
+        function checkout() {
+            CinetPay.setConfig({
+                apikey: '205591522966a214fa16fae7.61848894',//   YOUR APIKEY
+                site_id: '5876637',//YOUR_SITE_ID
+                notify_url: 'http://mondomaine.com/notify/',
+                mode: 'TEST'
+            });
+            CinetPay.getCheckout({
+                transaction_id: Math.floor(Math.random() * 100000000).toString(), // YOUR TRANSACTION ID
+                amount: total,
+                currency: 'CDF',
+                channels: 'ALL',
+                description: 'E-COMMERCE RECH',
+
+
+            });
+            CinetPay.waitResponse(function(data) {
+                submitFormData(data.operator_id, data.status)
+            });
+            CinetPay.onError(function(data) {
+                console.log(data);
+            });
+        }
+    </script>
+
+<script>
+
+    var total = parseFloat('{{ commande.get_panier_total }}');
+
+    if ( user != "AnonymousUser"){
+        document.getElementById('user-info').innerHTML = '';
+    }
+
+    var form = document.getElementById('form'); // On recupere le formulaire par le Id, car chaque formulaire a un id="form"
+     // On ajoute maintenant un evenement au formulaire, si le client fait un submit
+    form.addEventListener('submit', function(e){
+        e.preventDefault(); // pour que notre page ne puisse pas se recharcher
+        console.log('Donnee en cours  ....');
+        // maintenant on cache le boutton qui nous permet d'envoyer
+        document.getElementById('form-button').classList.add('hidden');
+        // On rend visible les moyens de paiement en enlevant le hidden
+        document.getElementById('payment-info').classList.remove('hidden')}
+    )
+
+    // Une fonction si le client choisi son mode de paiement, nous devons envoyer maintenant les données dans une fonction qui va traiter cela
+    //document.getElementById('make-payment').addEventListener('click', function(e){
+    //    submitFormData();
+
+    // })
+
+    function submitFormData(transaction_id, status){ // cette fonction va nous permettre d'envoyer les donnees dans notre admin( le code qu'on aura ici, ira au back-end pour traiter la commande)
+        paymentInfo = {
+            'transaction_id':transaction_id,
+            'status':status,
+            'total':total
+        }
+        var userFormData = {
+            'name':null,
+            'username':null,
+            'phone': null,
+            'email': null,
+            'total': total,
+        }
+        var shippingUserInfo = {
+            'address':null,
+            'city':null,
+            'state':null,
+            'zipcode':null,
+        }
+
+        shippingUserInfo.address = form.address.value;
+        shippingUserInfo.city = form.city.value;
+        shippingUserInfo.state = form.state.value;
+        shippingUserInfo.zipcode = form.zipcode.value;
+
+        if (user == "AnonymousUser"){
+            userFormData.name = form.name.value;
+            userFormData.username = form.username.value;
+            userFormData.phone = form.phone.value;
+            userFormData.email = form.email.value;
+        }
+
+
+
+        // on va mettre le fetch pour envoyer les données à notre vue traitementCommande
+        var url = '/traitement-commande/'
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken // csrftoken la variable qu'on a dans le scrip de base.html
+            },
+            body: JSON.stringify({"form": userFormData, "shipping": shippingUserInfo, 'payment_info': paymentInfo }) // les données qu'on va recuperer si l'utilisateur n'est pas connecté
+             })// fetch pour pointer sur notre url
+
+            .then((response) => {
+                return response.json();
+            })
+            // .then ce sont des promesses, la reponse qu'on va recevoir, on va l'envoyer sous forme de json
+            .then((data) => {
+                console.log('data', data);
+                alert("Traitement Commande terminée");
+                // si le traitement de la commande est terminée, on va rediriger windows à la page shop
+                panier = {};
+                document.cookie = "panier="+ JSON.stringify(panier)+ ";domain=;path=/";
+
+                window.location.href = "{% url 'shop:accueil' %}";
+
+            })
+    }
+
+</script>
+
+
+{% endblock content %}

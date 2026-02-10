@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Http\Controllers\Api\NotificationController;
 
 class DimeController extends Controller
 {
@@ -81,65 +82,83 @@ class DimeController extends Controller
     /**
      * Store a newly created resource in storage.
      */
- public function store(Request $request)
-{
-    try {
-        $validator = Validator::make($request->all(), [
-            'membre_id' => 'required|exists:membres,id',
-            'devise' => 'required|string|in:USD,CDF',
-            'montant_usd' => 'nullable|numeric|min:0',
-            'montant_cdf' => 'nullable|numeric|min:0',
-            'mois' => 'required|string',
-            'date_versement' => 'required|date',
-            'methode_paiement' => 'required|string|in:Espèces,Mobile Money,Banque,Virement,Carte de crédit,Chèque,Autre',
-            'note' => 'nullable|string|max:500',
-            'enregistre_par' => 'required|exists:users,id'
-        ]);
-        
-        if ($validator->fails()) {
+    public function store(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'membre_id' => 'required|exists:membres,id',
+                'devise' => 'required|string|in:USD,CDF',
+                'montant_usd' => 'nullable|numeric|min:0',
+                'montant_cdf' => 'nullable|numeric|min:0',
+                'mois' => 'required|string',
+                'date_versement' => 'required|date',
+                'methode_paiement' => 'required|string|in:Espèces,Mobile Money,Banque,Virement,Carte de crédit,Chèque,Autre',
+                'note' => 'nullable|string|max:500',
+                'enregistre_par' => 'required|exists:users,id'
+            ]);
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors(),
+                    'message' => 'Validation failed'
+                ], 422);
+            }
+            
+            // Initialiser les données
+            $data = [
+                'membre_id' => $request->membre_id,
+                'devise' => $request->devise,
+                'mois' => $request->mois,
+                'date_versement' => $request->date_versement,
+                'methode_paiement' => $request->methode_paiement,
+                'note' => $request->note,
+                'enregistre_par' => $request->enregistre_par,
+            ];
+            
+            // Remplir les colonnes selon la devise
+            if ($request->devise === 'USD') {
+                $data['montant_usd'] = $request->montant_usd ?? $request->montant ?? 0;
+                $data['montant_cdf'] = 0;
+            } else { // CDF
+                $data['montant_cdf'] = $request->montant_cdf ?? $request->montant ?? 0;
+                $data['montant_usd'] = 0;
+            }
+            
+            $dime = Dime::create($data);
+            
+            // 🔥 CORRECTION : CRÉER LA NOTIFICATION APRÈS LE RETOUR
+            if ($dime) {
+                // Vérifier si NotificationController existe
+                if (class_exists('\App\Http\Controllers\Api\NotificationController')) {
+                    try {
+                        \App\Http\Controllers\Api\NotificationController::createDimeNotification(
+                            $dime, 
+                            auth()->user()
+                        );
+                        \Log::info('✅ Notification de dîme créée pour ID: ' . $dime->id);
+                    } catch (\Exception $e) {
+                        \Log::warning('⚠️ Erreur création notification dîme: ' . $e->getMessage());
+                    }
+                } else {
+                    \Log::warning('⚠️ NotificationController non trouvé');
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $dime->load(['membre:id,nom,prenom,postnom', 'enregistreur:id,name']),
+                'message' => 'Dîme enregistrée avec succès'
+            ], 201);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur DimeController@store: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors(),
-                'message' => 'Validation failed'
-            ], 422);
+                'message' => 'Erreur lors de l\'enregistrement de la dîme: ' . $e->getMessage()
+            ], 500);
         }
-        
-        // Initialiser les données
-        $data = [
-            'membre_id' => $request->membre_id,
-            'devise' => $request->devise,
-            'mois' => $request->mois,
-            'date_versement' => $request->date_versement,
-            'methode_paiement' => $request->methode_paiement,
-            'note' => $request->note,
-            'enregistre_par' => $request->enregistre_par,
-        ];
-        
-        // Remplir les colonnes selon la devise
-        if ($request->devise === 'USD') {
-            $data['montant_usd'] = $request->montant_usd ?? $request->montant ?? 0;
-            $data['montant_cdf'] = 0;
-        } else { // CDF
-            $data['montant_cdf'] = $request->montant_cdf ?? $request->montant ?? 0;
-            $data['montant_usd'] = 0;
-        }
-        
-        $dime = Dime::create($data);
-        
-        return response()->json([
-            'success' => true,
-            'data' => $dime->load(['membre:id,nom,prenom,postnom', 'enregistreur:id,name']),
-            'message' => 'Dîme enregistrée avec succès'
-        ], 201);
-        
-    } catch (\Exception $e) {
-        \Log::error('Erreur DimeController@store: ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de l\'enregistrement de la dîme: ' . $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Display the specified resource.

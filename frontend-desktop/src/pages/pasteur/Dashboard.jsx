@@ -183,28 +183,37 @@ export default function Dashboard() {
       }
       
       // Dépenses
-      try {
-        const depensesRes = await api.get('/depenses/stats')
-        if (depensesRes.data.success) {
-          const data = depensesRes.data.data || {}
-          setStats(prev => ({
-            ...prev,
-            depenses: {
-              total_usd: (data.details?.construction_usd || 0) + (data.details?.dime_usd || 0),
-              total_cdf: (data.details?.construction_cdf || 0) + (data.details?.dime_cdf || 0),
-              construction_usd: data.details?.construction_usd || 0,
-              construction_cdf: data.details?.construction_cdf || 0,
-              dime_usd: data.details?.dime_usd || 0,
-              dime_cdf: data.details?.dime_cdf || 0,
-              derniere_date: data.derniere_date || null,
-              loaded: true
-            }
-          }))
-        }
-      } catch (error) {
-        console.log('Dépenses error:', error.message)
+      // Dépenses
+// Dépenses
+// Dépenses
+try {
+  const depensesRes = await api.get('/depenses/stats')
+  if (depensesRes.data.success) {
+    const d = depensesRes.data.data;
+    
+    // On crée l'objet proprement
+    const total_usd = parseFloat(d.usd || 0);
+    const total_cdf = parseFloat(d.cdf || 0);
+
+    setStats(prev => ({
+      ...prev,
+      depenses: {
+        ...prev.depenses, // On garde les autres champs
+        total_usd: total_usd,
+        total_cdf: total_cdf,
+        // On s'assure que construction et dime ne sont pas NaN
+        construction_usd: parseFloat(d.construction_usd || 0),
+        construction_cdf: parseFloat(d.construction_cdf || 0),
+        dime_usd: parseFloat(d.dime_usd || 0),
+        dime_cdf: parseFloat(d.dime_cdf || 0),
+        derniere_date: d.derniere_date || null,
+        loaded: true
       }
-      
+    }));
+  }
+} catch (error) {
+  console.error('Erreur:', error);
+}  
       // Préparer les données pour les graphiques
       prepareChartData()
       
@@ -332,7 +341,7 @@ export default function Dashboard() {
       </div>
     )
   }
-
+console.log("🖥️ État final des dépenses avant affichage:", stats.depenses);
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
       {/* Header avec gradient */}
@@ -466,47 +475,52 @@ export default function Dashboard() {
         </div>
 
         {/* Carte Dépenses */}
-        <div className="group bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300">
-          <div className="flex items-start justify-between mb-6">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <ArrowDownCircle className="text-white" size={26} />
-            </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-              stats.depenses.total_usd > 0 || stats.depenses.total_cdf > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {stats.depenses.total_usd > 0 || stats.depenses.total_cdf > 0 ? <TrendingUp size={12} className="inline mr-1" /> : ''}
-              Total
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Dépenses</h3>
-          <div className="mb-4">
-            {formatDoubleCurrency(stats.depenses.total_usd, stats.depenses.total_cdf)}
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Construction</span>
-              <span className="font-semibold text-orange-600">
-                {formatDoubleCurrency(stats.depenses.construction_usd, stats.depenses.construction_cdf)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Dîmes</span>
-              <span className="font-semibold text-purple-600">
-                {formatDoubleCurrency(stats.depenses.dime_usd, stats.depenses.dime_cdf)}
-              </span>
-            </div>
-            <div className="pt-2 border-t border-gray-100">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Dernière dépense</span>
-                <span className="font-medium">
-                  {stats.depenses.derniere_date 
-                    ? new Date(stats.depenses.derniere_date).toLocaleDateString('fr-FR') 
-                    : '--/--/----'}
-                </span>
-              </div>
-            </div>
-          </div>
+       {/* Carte Dépenses avec Double Devise */}
+<div className="group bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300">
+  <div className="flex items-start justify-between mb-4">
+    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+      <ArrowDownCircle className="text-white" size={26} />
+    </div>
+    <div className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+      Sorties totales
+    </div>
+  </div>
+  
+  <h3 className="text-sm font-medium text-gray-500 mb-2">Dépenses globales</h3>
+  
+  {/* Affichage du TOTAL USD et CDF */}
+  <div className="mb-6 py-2">
+    {formatDoubleCurrency(stats.depenses.total_usd, stats.depenses.total_cdf)}
+  </div>
+
+  <div className="space-y-4 border-t border-gray-100 pt-4">
+    {/* Détail Construction */}
+    <div className="flex justify-between items-start">
+      <span className="text-xs text-gray-500 font-medium uppercase">Construction</span>
+      <div className="text-right">
+        <div className="text-sm font-semibold text-orange-600">
+          {formatCurrency(stats.depenses.construction_usd, 'USD')}
         </div>
+        <div className="text-[10px] text-gray-400">
+          {formatCurrency(stats.depenses.construction_cdf, 'CDF')}
+        </div>
+      </div>
+    </div>
+
+    {/* Détail Dîmes */}
+    <div className="flex justify-between items-start">
+      <span className="text-xs text-gray-500 font-medium uppercase">Dîmes (Dépense)</span>
+      <div className="text-right">
+        <div className="text-sm font-semibold text-purple-600">
+          {formatCurrency(stats.depenses.dime_usd, 'USD')}
+        </div>
+        <div className="text-[10px] text-gray-400">
+          {formatCurrency(stats.depenses.dime_cdf, 'CDF')}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
       </div>
 
       {/* Section graphiques */}

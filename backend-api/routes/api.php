@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\{
     ProfileController,
     CaptchaController,
     DepenseController,
+    NotificationController
 };
 
 
@@ -45,7 +46,7 @@ Route::get('/promesses/pending-public/{telephone}', [PromesseController::class, 
 Route::post('/promesses/public', [PromesseController::class, 'storePublic']);
  Route::apiResource('paiements', PaiementController::class);
 //recaptcha
-
+Route::post('/paiement/finaliser', [PaymentController::class, 'finaliserPaiement']);
 // routes/api.php - TEMPORAIREMENT
 Route::get('/test-dimes', function() {
     try {
@@ -165,6 +166,19 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/depenses/stats', [DepenseController::class, 'stats']);
                 Route::apiResource('depenses', DepenseController::class);
             });
+
+  // Notification
+        Route::middleware('auth:sanctum')->group(function () {
+        Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/recent', [NotificationController::class, 'recent']);
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::put('/mark-read/{id}', [NotificationController::class, 'markAsRead']);
+        Route::put('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+        Route::delete('/{id}', [NotificationController::class, 'destroy']);
+        Route::apiResource('notifications', NotificationController::class);
+    });
+});
 
 
     /* ======================================================

@@ -1,22 +1,26 @@
-import React from "react"
+import React, { useRef } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
+import jsPDF from "jspdf"
+import html2canvas from "html2canvas"
 
 export default function ConfirmationPaiement() {
   const location = useLocation()
   const navigate = useNavigate()
-  
-  const { 
-    type, 
-    montant, 
-    devise, // IMPORTANT : Ajouter la devise
-    membre, 
-    engagement, 
+  const receiptRef = useRef() // Référence pour capturer le PDF
+
+  const {
+    type,
+    montant,
+    devise,
+    membre,
+    engagement,
     paymentData,
     datePaiement,
     methode,
     observation
   } = location.state || {}
 
+  // Sécurité si aucune donnée n'est présente
   if (!paymentData && !montant) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -28,10 +32,7 @@ export default function ConfirmationPaiement() {
           </div>
           <h1 className="text-2xl font-bold mb-4">Aucune donnée</h1>
           <p className="text-gray-600 mb-6">Aucune information de paiement trouvée.</p>
-          <button
-            onClick={() => navigate("/")}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium"
-          >
+          <button onClick={() => navigate("/")} className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium">
             Retour à l'accueil
           </button>
         </div>
@@ -39,184 +40,132 @@ export default function ConfirmationPaiement() {
     )
   }
 
-  // Formater le montant avec la devise
-  const formatMontant = (montant, devise) => {
-    const montantFormate = parseFloat(montant || 0).toLocaleString('fr-FR', {
+  // --- LOGIQUE DU PDF ---
+  const handleDownloadPDF = async () => {
+    const element = receiptRef.current
+    const canvas = await html2canvas(element, { scale: 2, logging: false, useCORS: true })
+    const data = canvas.toDataURL('image/png')
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
+
+    const imgProps = pdf.getImageProperties(data)
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+
+    // On ajoute un peu de marge en haut (10mm)
+    pdf.addImage(data, 'PNG', 0, 10, pdfWidth, pdfHeight)
+    pdf.save(`Recu_${type}_${membre?.nom || 'Paiement'}.pdf`)
+  }
+
+  // Formater le montant
+  const formatMontant = (m, d) => {
+    const formatted = parseFloat(m || 0).toLocaleString('fr-FR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
-    return devise === 'USD' ? `${montantFormate} $` : `${montantFormate} FC`
+    return d === 'USD' ? `${formatted} $` : `${formatted} FC`
   }
 
-  // Récupérer les informations du paiement
   const paiementInfo = paymentData || {}
-  
-  // Déterminer la devise
   const devisePaiement = devise || paiementInfo.devise || 'USD'
-  
-  // Déterminer le montant
-  const montantPaiement = montant || paiementInfo.montant || paiementInfo.montant_usd || paiementInfo.montant_cdf || 0
+  const montantPaiement = montant || paiementInfo.montant || 0
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full text-center">
-        
-        {/* Icône de succès */}
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+      
+      {/* 📄 ZONE CAPTURÉE POUR LE PDF */}
+      <div 
+        ref={receiptRef} 
+        className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center border-t-8 border-blue-600"
+      >
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-blue-600 uppercase tracking-widest">Reçu Officiel</h2>
+          <div className="h-px bg-gray-200 w-full my-2"></div>
+          <p className="text-[10px] text-gray-400">Date: {new Date().toLocaleString()}</p>
+        </div>
+
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
           </svg>
         </div>
 
-        <h1 className="text-2xl font-bold mb-2">Paiement enregistré !</h1>
-        <p className="text-gray-600 mb-6">Le paiement a été enregistré avec succès dans la base de données.</p>
+        <h1 className="text-2xl font-bold mb-2">Paiement Réussi !</h1>
+        <p className="text-gray-500 text-sm mb-6">Merci pour votre contribution.</p>
 
-        {/* Détails */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+        <div className="bg-gray-50 rounded-lg p-5 mb-6 text-left border-dashed border-2 border-gray-200">
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Type:</span>
-              <span className="font-medium px-3 py-1 rounded-full capitalize bg-blue-100 text-blue-800 text-sm">
-                {type === "dime" ? "Dîme" : "Engagement"}
-              </span>
+              <span className="text-xs text-gray-500 uppercase font-semibold">Type</span>
+              <span className="font-medium text-sm text-blue-800 bg-blue-50 px-2 py-0.5 rounded uppercase">{type}</span>
             </div>
-            
-            {membre && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Membre:</span>
-                <div className="text-right">
-                  <span className="font-medium block">{membre.nom_complet || `${membre.nom} ${membre.prenom || ""}`.trim()}</span>
-                  {membre.telephone && (
-                    <span className="text-xs text-gray-500 block">{membre.telephone}</span>
-                  )}
-                </div>
+
+            <div className="flex justify-between items-start">
+              <span className="text-xs text-gray-500 uppercase font-semibold">Membre</span>
+              <div className="text-right">
+                <span className="font-bold text-sm block">{membre?.nom} {membre?.prenom}</span>
+                <span className="text-[10px] text-gray-400">{membre?.telephone}</span>
               </div>
-            )}
-            
-            <div className="flex justify-between">
-              <span className="text-gray-600">Montant:</span>
-              <span className={`font-bold text-lg ${
-                devisePaiement === 'USD' ? 'text-blue-600' : 'text-green-600'
-              }`}>
+            </div>
+
+            <div className="flex justify-between items-center border-t border-b border-gray-200 py-3 my-2">
+              <span className="text-xs text-gray-500 uppercase font-semibold">Total Payé</span>
+              <span className="text-xl font-black text-blue-600">
                 {formatMontant(montantPaiement, devisePaiement)}
               </span>
             </div>
-            
-            <div className="flex justify-between">
-              <span className="text-gray-600">Devise:</span>
-              <span className={`font-medium px-2 py-1 rounded-full text-xs ${
-                devisePaiement === 'USD' 
-                  ? 'bg-blue-100 text-blue-800' 
-                  : 'bg-green-100 text-green-800'
-              }`}>
-                {devisePaiement === 'USD' ? 'Dollars (USD)' : 'Francs (CDF)'}
-              </span>
-            </div>
-            
-            {methode && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Méthode:</span>
-                <span className="font-medium capitalize">{methode}</span>
-              </div>
-            )}
-            
-            {datePaiement && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Date:</span>
-                <span className="font-medium">
-                  {new Date(datePaiement).toLocaleDateString('fr-FR', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric'
-                  })}
-                </span>
-              </div>
-            )}
-            
+
             {type === "engagement" && engagement && (
-              <>
-                <div className="border-t pt-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Engagement #:</span>
-                    <span className="font-medium">{engagement.id}</span>
-                  </div>
-                  
-                  <div className="flex justify-between mt-2">
-                    <span className="text-gray-600">Ancien solde:</span>
-                    <span className="font-medium">
-                      {formatMontant(engagement.montant_restant, engagement.devise)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between mt-2">
-                    <span className="text-gray-600">Montant payé:</span>
-                    <span className="font-medium text-green-600">
-                      {formatMontant(montantPaiement, devisePaiement)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between mt-2">
-                    <span className="text-gray-600">Nouveau solde:</span>
-                    <span className="font-bold">
-                      {formatMontant(
-                        engagement.montant_restant - montantPaiement, 
-                        engagement.devise
-                      )}
-                    </span>
-                  </div>
+              <div className="space-y-1 text-[11px] text-gray-600">
+                <div className="flex justify-between italic">
+                  <span>Solde restant avant :</span>
+                  <span>{formatMontant(engagement.montant_restant, engagement.devise)}</span>
                 </div>
-              </>
-            )}
-            
-            {observation && (
-              <div className="border-t pt-3">
-                <span className="text-gray-600 block mb-1">Observation:</span>
-                <p className="text-sm text-gray-700 bg-white p-2 rounded border">{observation}</p>
+                <div className="flex justify-between font-bold text-gray-800">
+                  <span>Nouveau solde :</span>
+                  <span>{formatMontant(engagement.montant_restant - montantPaiement, engagement.devise)}</span>
+                </div>
               </div>
             )}
-            
-            {paiementInfo?.id && (
-              <div className="flex justify-between border-t pt-3">
-                <span className="text-gray-600">Référence:</span>
-                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                  #{paiementInfo.id}
-                </span>
-              </div>
-            )}
+
+            <div className="pt-2 text-[10px] text-gray-400 flex justify-between">
+              <span>Réf : #{paiementInfo.id || 'WEB-SYNC'}</span>
+              <span className="capitalize">{methode || 'Mobile Money'}</span>
+            </div>
           </div>
         </div>
 
-        {/* Boutons d'action */}
-        <div className="space-y-3">
-          <button
-            onClick={() => navigate(type === "dime" ? "/public/dime" : "/public/engagement")}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg"
-          >
-            Faire un autre paiement
-          </button>
-        
-          
-          {/* {paiementInfo?.id && (
-            <button
-              onClick={() => {
-                // Fonction pour imprimer ou sauvegarder
-                window.print()
-              }}
-              className="w-full border border-blue-300 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50 transition-colors"
-            >
-              Imprimer le reçu
-            </button>
-          )} */}
-        </div>
-
-        <p className="text-sm text-gray-500 mt-6">
-          {type === "dime" 
-            ? "La dîme a été enregistrée avec succès." 
-            : "Le paiement d'engagement a été enregistré avec succès."}
-          <br />
-          <span className="text-xs">Un reçu électronique a été généré.</span>
+        <p className="text-[9px] text-gray-400 italic leading-tight">
+          "Donnez, et il vous sera donné : on versera dans votre sein une bonne mesure..." <br/> Luc 6:38
         </p>
+      </div>
+
+      {/* 🛠 BOUTONS D'ACTIONS (Hors PDF) */}
+      <div className="max-w-md w-full mt-6 space-y-3">
+        <button
+          onClick={handleDownloadPDF}
+          className="w-full flex items-center justify-center bg-green-600 text-white py-3.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          Télécharger le Reçu PDF
+        </button>
+
+        <button
+          onClick={() => navigate(type === "dime" ? "/public/dime" : "/public/engagement")}
+          className="w-full bg-white text-blue-600 py-3 rounded-xl font-semibold border border-blue-100 hover:bg-blue-50 transition-colors"
+        >
+          Faire un autre paiement
+        </button>
+        
+        <button onClick={() => navigate("/")} className="w-full text-gray-400 text-sm hover:underline py-2">
+          Retour à l'accueil
+        </button>
       </div>
     </div>
   )

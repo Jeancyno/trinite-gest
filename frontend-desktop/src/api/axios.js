@@ -1,11 +1,10 @@
 import axios from "axios"
 
 const api = axios.create({
-  baseURL: "http://172.20.10.9:8000/api", // IP DE TON PC
+  baseURL: import.meta.env.VITE_API_URL,
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",
-    
   },
 })
 

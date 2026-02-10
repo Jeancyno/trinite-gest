@@ -72,6 +72,27 @@ class DepenseController extends Controller
                 'details' => $request->details
             ]);
 
+            // 🔥 CORRECTION : CRÉER LA NOTIFICATION
+          // 🔥 CORRECTION : APPEL DU BON NAMESPACE
+            if ($depense) {
+                try {
+                    // Utilisation du chemin complet exact tel que vérifié dans Tinker
+                    $notificationClass = \App\Http\Controllers\Api\NotificationController::class;
+
+                    if (class_exists($notificationClass)) {
+                        $notificationClass::createExpenseNotification(
+                            $depense, 
+                            auth()->user()
+                        );
+                        \Log::info('✅ Notification de dépense créée pour ID: ' . $depense->id);
+                    } else {
+                        \Log::warning('⚠️ NotificationController non trouvé à l\'adresse: ' . $notificationClass);
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('❌ Erreur critique notification dépense: ' . $e->getMessage());
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Dépense enregistrée.',
@@ -85,15 +106,23 @@ class DepenseController extends Controller
 
    private function calculerSolde($source, $devise)
 {
+    $devise = strtoupper($devise); // Sécurité : USD ou CDF
+
     if ($source === 'dime') {
-        return (float) DB::table('dimes')
-            ->where('devise', $devise)
-            ->sum('montant') - DB::table('depenses')
+        // On cible la colonne spécifique à la devise
+        $colonne = ($devise === 'USD') ? 'montant_usd' : 'montant_cdf';
+
+        $entrees = DB::table('dimes')
+            ->sum($colonne) ?? 0;
+
+        $sorties = DB::table('depenses')
             ->where('source', 'dime')
             ->where('devise', $devise)
-            ->sum('montant');
+            ->sum('montant') ?? 0;
+
+        return (float) ($entrees - $sorties);
     } else {
-        // La Caisse Construction lit directement la table promesses
+        // Caisse Construction (reste inchangé si ta table promesses est ok)
         $entrees = DB::table('promesses')
             ->where('devise', $devise)
             ->where('statut', 'actif')
@@ -107,29 +136,40 @@ class DepenseController extends Controller
         return (float) ($entrees - $sorties);
     }
 }
+    
     /**
      * Obtenir les statistiques globales des dépenses pour le Dashboard
      */
-    public function stats()
-    {
-        try {
-            // On récupère le total des dépenses par devise
-            $totalUSD = Depense::where('devise', 'USD')->sum('montant');
-            $totalCDF = Depense::where('devise', 'CDF')->sum('montant');
+   public function stats()
+{
+    try {
+        // Totaux Généraux
+        $totalUSD = Depense::where('devise', 'USD')->sum('montant');
+        $totalCDF = Depense::where('devise', 'CDF')->sum('montant');
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'usd' => (float) $totalUSD,
-                    'cdf' => (float) $totalCDF,
-                    'total_count' => Depense::count()
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur stats dépenses: ' . $e->getMessage()
-            ], 500);
-        }
+        // Détails par Source (C'est ce qui manquait !)
+        $constructionUSD = Depense::where('source', 'construction')->where('devise', 'USD')->sum('montant');
+        $constructionCDF = Depense::where('source', 'construction')->where('devise', 'CDF')->sum('montant');
+        
+        $dimeUSD = Depense::where('source', 'dime')->where('devise', 'USD')->sum('montant');
+        $dimeCDF = Depense::where('source', 'dime')->where('devise', 'CDF')->sum('montant');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'usd' => (float) $totalUSD,
+                'cdf' => (float) $totalCDF,
+                'construction_usd' => (float) $constructionUSD,
+                'construction_cdf' => (float) $constructionCDF,
+                'dime_usd' => (float) $dimeUSD,
+                'dime_cdf' => (float) $dimeCDF,
+                'total_count' => Depense::count(),
+                'derniere_date' => Depense::latest('date_depense')->value('date_depense')
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
     }
 }
+}
+
